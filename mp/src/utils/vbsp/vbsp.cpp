@@ -68,6 +68,8 @@ char		outbase[32];
 
 char		g_szEmbedDir[MAX_PATH] = { 0 };
 
+bool g_noBlockSplit = false; // make the world out of one block
+
 // HLTOOLS: Introduce these calcs to make the block algorithm proportional to the proper 
 // world coordinate extents.  Assumes square spatial constraints.
 #define BLOCKS_SIZE		1024
@@ -192,6 +194,49 @@ void ProcessBlock_Thread (int threadnum, int blocknum)
 	
 	block_nodes[xblock+BLOCKX_OFFSET][yblock+BLOCKY_OFFSET] = tree->headnode;
 }
+/*
+============
+ProcessBlockSingle, copy edit of ProcessBlock_Thread
+
+============
+*/
+tree_t *ProcessBlockSingle (float oversize)
+{
+	Vector		mins, maxs;
+	bspbrush_t	*brushes;
+	tree_t		*tree;
+	node_t		*node;
+
+	mins = g_MainMap->map_mins;
+	maxs = g_MainMap->map_maxs;
+
+	// the makelist and chopbrushes could be cached between the passes...
+	brushes = MakeBspBrushList (brush_start, brush_end, mins, maxs, NO_DETAIL);
+	if (!brushes)
+	{
+		node = AllocNode ();
+		node->planenum = PLANENUM_LEAF;
+		node->contents = CONTENTS_SOLID;
+
+		tree = AllocTree ();
+		tree->headnode = node;
+		qprintf ("no brushes\n");
+	}
+	else
+	{
+		FixupAreaportalWaterBrushes( brushes );
+		if (!nocsg)
+			brushes = ChopBrushes (brushes);
+
+		tree = BrushBSP (brushes, mins, maxs);
+	}
+
+	mins -= oversize;
+	maxs += oversize;
+	tree->mins = mins;
+	tree->maxs = maxs;
+	return tree;
+}
 
 
 /*
@@ -218,66 +263,74 @@ void ProcessWorldModel (void)
 	//
 	// perform per-block operations
 	//
-	if (block_xh * BLOCKS_SIZE > g_MainMap->map_maxs[0])
+	if (!g_noBlockSplit)
 	{
-		block_xh = floor(g_MainMap->map_maxs[0]/BLOCKS_SIZE);
-	}
-	if ( (block_xl+1) * BLOCKS_SIZE < g_MainMap->map_mins[0])
-	{
-		block_xl = floor(g_MainMap->map_mins[0]/BLOCKS_SIZE);
-	}
-	if (block_yh * BLOCKS_SIZE > g_MainMap->map_maxs[1])
-	{
-		block_yh = floor(g_MainMap->map_maxs[1]/BLOCKS_SIZE);
-	}
-	if ( (block_yl+1) * BLOCKS_SIZE < g_MainMap->map_mins[1])
-	{
-		block_yl = floor(g_MainMap->map_mins[1]/BLOCKS_SIZE);
-	}
+		if (block_xh * BLOCKS_SIZE > g_MainMap->map_maxs[0])
+		{
+			block_xh = floor(g_MainMap->map_maxs[0]/BLOCKS_SIZE);
+		}
+		if ( (block_xl+1) * BLOCKS_SIZE < g_MainMap->map_mins[0])
+		{
+			block_xl = floor(g_MainMap->map_mins[0]/BLOCKS_SIZE);
+		}
+		if (block_yh * BLOCKS_SIZE > g_MainMap->map_maxs[1])
+		{
+			block_yh = floor(g_MainMap->map_maxs[1]/BLOCKS_SIZE);
+		}
+		if ( (block_yl+1) * BLOCKS_SIZE < g_MainMap->map_mins[1])
+		{
+			block_yl = floor(g_MainMap->map_mins[1]/BLOCKS_SIZE);
+		}
 
-	// HLTOOLS: updated to +/- MAX_COORD_INTEGER ( new world size limits / worldsize.h )
-	if (block_xl < BLOCKS_MIN)
-	{
-		block_xl = BLOCKS_MIN;
-	}
-	if (block_yl < BLOCKS_MIN)
-	{
-		block_yl = BLOCKS_MIN;
-	}
-	if (block_xh > BLOCKS_MAX)
-	{
-		block_xh = BLOCKS_MAX;
-	}
-	if (block_yh > BLOCKS_MAX)
-	{
-		block_yh = BLOCKS_MAX;
+		// HLTOOLS: updated to +/- MAX_COORD_INTEGER ( new world size limits / worldsize.h )
+		if (block_xl < BLOCKS_MIN)
+		{
+			block_xl = BLOCKS_MIN;
+		}
+		if (block_yl < BLOCKS_MIN)
+		{
+			block_yl = BLOCKS_MIN;
+		}
+		if (block_xh > BLOCKS_MAX)
+		{
+			block_xh = BLOCKS_MAX;
+		}
+		if (block_yh > BLOCKS_MAX)
+		{
+			block_yh = BLOCKS_MAX;
+		}
 	}
 
 	for (optimize = 0 ; optimize <= 1 ; optimize++)
 	{
-		qprintf ("--------------------------------------------\n");
+		if (g_noBlockSplit)
+			tree = ProcessBlockSingle(8);
+		else
+		{
+			qprintf ("--------------------------------------------\n");
 
-		RunThreadsOnIndividual ((block_xh-block_xl+1)*(block_yh-block_yl+1),
-			!verbose, ProcessBlock_Thread);
+			RunThreadsOnIndividual ((block_xh-block_xl+1)*(block_yh-block_yl+1),
+				!verbose, ProcessBlock_Thread);
 
-		//
-		// build the division tree
-		// oversizing the blocks guarantees that all the boundaries
-		// will also get nodes.
-		//
+			//
+			// build the division tree
+			// oversizing the blocks guarantees that all the boundaries
+			// will also get nodes.
+			//
 
-		qprintf ("--------------------------------------------\n");
+			qprintf ("--------------------------------------------\n");
 
-		tree = AllocTree ();
-		tree->headnode = BlockTree (block_xl-1, block_yl-1, block_xh+1, block_yh+1);
+			tree = AllocTree ();
+			tree->headnode = BlockTree (block_xl-1, block_yl-1, block_xh+1, block_yh+1);
 
-		tree->mins[0] = (block_xl)*BLOCKS_SIZE;
-		tree->mins[1] = (block_yl)*BLOCKS_SIZE;
-		tree->mins[2] = g_MainMap->map_mins[2] - 8;
+			tree->mins[0] = (block_xl)*BLOCKS_SIZE;
+			tree->mins[1] = (block_yl)*BLOCKS_SIZE;
+			tree->mins[2] = g_MainMap->map_mins[2] - 8;
 
-		tree->maxs[0] = (block_xh+1)*BLOCKS_SIZE;
-		tree->maxs[1] = (block_yh+1)*BLOCKS_SIZE;
-		tree->maxs[2] = g_MainMap->map_maxs[2] + 8;
+			tree->maxs[0] = (block_xh+1)*BLOCKS_SIZE;
+			tree->maxs[1] = (block_yh+1)*BLOCKS_SIZE;
+			tree->maxs[2] = g_MainMap->map_maxs[2] + 8;
+		}
 
 		//
 		// perform the global operations
@@ -1150,6 +1203,10 @@ int RunVBSP( int argc, char **argv )
 			g_pFullFileSystem->AddSearchPath( g_szEmbedDir, "GAME", PATH_ADD_TO_TAIL );
 			g_pFullFileSystem->AddSearchPath( g_szEmbedDir, "MOD", PATH_ADD_TO_TAIL );
 		}
+		else if ( !Q_stricmp( argv[i], "-noblocks" ) )
+		{
+			g_noBlockSplit = true;
+		}
 		else if (argv[i][0] == '-')
 		{
 			Warning("VBSP: Unknown option \"%s\"\n\n", argv[i]);
@@ -1221,6 +1278,7 @@ int RunVBSP( int argc, char **argv )
 				"  -snapaxial   : Snap axial planes to integer coordinates.\n"
 				"  -block # #      : Control the grid size mins that vbsp chops the level on.\n"
 				"  -blocks # # # # : Enter the mins and maxs for the grid size vbsp uses.\n"
+				"  -noblocks       : Do not chop the level into blocks.\n"
 				"  -dumpstaticprops: Dump static props to staticprop*.txt\n"
 				"  -dumpcollide    : Write files with collision info.\n"
 				"  -forceskyvis	   : Enable vis calculations in 3d skybox leaves\n"
