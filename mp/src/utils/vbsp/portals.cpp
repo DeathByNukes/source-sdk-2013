@@ -110,7 +110,7 @@ The nodes on either side of the portal may actually be clusters,
 not leafs, so all contents should be ored together
 =============
 */
-qboolean Portal_VisFlood (portal_t *p)
+static qboolean Portal_VisFlood_impl (portal_t *p)
 {
 	int		c1, c2;
 
@@ -138,6 +138,11 @@ qboolean Portal_VisFlood (portal_t *p)
 		return true;
 	return false;
 }
+side_t *FindPortalSurface (portal_t *p, int surface);
+qboolean Portal_VisFlood(portal_t *p)
+{
+	return Portal_VisFlood_impl(p) && !FindPortalSurface(p, SURF_VISOCCLUDER);
+}
 
 
 /*
@@ -158,6 +163,9 @@ qboolean Portal_EntityFlood (portal_t *p, int s)
 	// can never cross to a solid 
 	if ( (p->nodes[0]->contents & CONTENTS_SOLID)
 	|| (p->nodes[1]->contents & CONTENTS_SOLID) )
+		return false;
+
+	if (FindPortalSurface(p, SURF_VISOCCLUDER))
 		return false;
 
 	// can flood through everything else
@@ -1577,6 +1585,63 @@ gotit:
 
 	p->sidefound = true;
 	p->side = bestside;
+}
+
+/*
+============
+FindPortalSurface
+
+Finds a tool brush side that influences the given portal
+============
+*/
+side_t *FindPortalSurface (portal_t *p, int surface)
+{
+	bspbrush_t	*bb;
+	mapbrush_t	*brush;
+	node_t		*n;
+	int			i,j;
+	int			planenum;
+	side_t		*side, *bestside;
+	float		bestdist;
+	plane_t		*p1, *p2;
+
+	planenum = p->onnode->planenum;
+	bestside = NULL;
+	bestdist = p->winding->numpoints * 2; // ignore sides with an average distance of 2 or more
+
+	for (j=0 ; j<2 ; j++)
+	{
+		n = p->nodes[j];
+		p1 = &g_MainMap->mapplanes[p->onnode->planenum];
+
+		for (bb=n->brushlist ; bb ; bb=bb->next)
+		{
+			brush = bb->original;
+			for (i=0 ; i<brush->numsides ; i++)
+			{
+				side = &brush->original_sides[i];
+				if (side->bevel)
+					continue;
+				if ((side->surf & surface) != surface)
+					continue;
+
+				if ((side->planenum&~1) == planenum)
+				{	// exact match
+					return &brush->original_sides[i];
+				}
+
+				p2 = &g_MainMap->mapplanes[side->planenum&~1];
+
+				float dist = ComputeDistFromPlane( p->winding, p2, bestdist );
+				if (dist < bestdist)
+				{
+					bestside = side;
+					bestdist = dist;
+				}
+			}
+		}
+	}
+	return bestside;
 }
 
 

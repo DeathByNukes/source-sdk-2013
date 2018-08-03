@@ -305,6 +305,10 @@ int	FindMiptex (const char *name)
 	{
 		textureref[i].flags |= SURF_CHOP_HIGH | SURF_CHOP_LOW;
 	}
+	if ( (propVal = GetMaterialVar(matID, "%compileVisOccluder")) && StringIsTrue(propVal) )
+	{
+		textureref[i].flags |= SURF_VISOCCLUDER;
+	}
 
 	nummiptex++;
 
