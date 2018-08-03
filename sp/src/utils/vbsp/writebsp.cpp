@@ -773,6 +773,9 @@ void CompactTexinfos()
 	memset( texinfoMap, 0, sizeof(texinfoMap[0])*texinfo.Count() );
 	memset( texdataMap, 0, sizeof(texdataMap[0])*numtexdata );
 	int i;
+	// remove all flags that don't fit in a short
+	for ( i = 0; i < texinfo.Count(); i++ )
+		texinfo[i].flags &= 0xFFFF;
 	// get texinfos referenced by faces
 	for ( i = 0; i < numfaces; i++ )
 	{

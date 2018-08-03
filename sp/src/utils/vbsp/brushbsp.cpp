@@ -957,6 +957,16 @@ side_t *SelectSplitSide (bspbrush_t *brushes, node_t *node)
 				if (side->contents & (CONTENTS_WATER | CONTENTS_SLIME))
 					value = 9999999;
 
+				if (side->surf & SURF_CHOP_HIGH)
+				{
+					if (side->surf & SURF_CHOP_LOW)
+						value = 9999999+1;
+					else
+						value += 550;
+				}
+				else if (side->surf & SURF_CHOP_LOW)
+					value -= 2000;
+
 				// save off the side test so we don't need
 				// to recalculate it when we actually seperate
 				// the brushes

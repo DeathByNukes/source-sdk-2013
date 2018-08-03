@@ -96,6 +96,10 @@
 #define SURF_NOCHOP		0x4000	// Don't subdivide patches on this surface 
 #define SURF_HITBOX		0x8000	// surface is part of a hitbox
 
+// values over 16 bits will be cleared before being written to bsp
+#define SURF_CHOP_HIGH	(1<<31) // high and low together = highest
+#define SURF_CHOP_LOW	(1<<30)
+
 
 
 // -----------------------------------------------------

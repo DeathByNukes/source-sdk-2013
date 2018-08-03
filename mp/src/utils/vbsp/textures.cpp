@@ -293,6 +293,19 @@ int	FindMiptex (const char *name)
 		}
 	}
 
+	if ( (propVal = GetMaterialVar(matID, "%compileChopHigh")) && StringIsTrue(propVal) )
+	{
+		textureref[i].flags |= SURF_CHOP_HIGH;
+	}
+	else if ( (propVal = GetMaterialVar(matID, "%compileChopLow")) && StringIsTrue(propVal) )
+	{
+		textureref[i].flags |= SURF_CHOP_LOW;
+	}
+	else if ( (propVal = GetMaterialVar(matID, "%compileChopAll")) && StringIsTrue(propVal) )
+	{
+		textureref[i].flags |= SURF_CHOP_HIGH | SURF_CHOP_LOW;
+	}
+
 	nummiptex++;
 
 	return i;
