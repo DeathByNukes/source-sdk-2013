@@ -56,6 +56,7 @@ bool		g_NodrawTriggers = false;
 bool		g_DisableWaterLighting = false;
 bool		g_bAllowDetailCracks = false;
 bool		g_bNoVirtualMesh = false;
+bool        g_bNoHiddenManifestMaps = false;
 
 float		g_defaultLuxelSize = DEFAULT_LUXEL_SIZE;
 float		g_luxelScale = 1.0f;
@@ -1186,6 +1187,10 @@ int RunVBSP( int argc, char **argv )
 		{
 			g_noBlockSplit = true;
 		}
+		else if ( !Q_stricmp( argv[i], "-nohiddenmaps" ) )
+		{
+			g_bNoHiddenManifestMaps = true;
+		}
 		else if (argv[i][0] == '-')
 		{
 			Warning("VBSP: Unknown option \"%s\"\n\n", argv[i]);
@@ -1270,6 +1275,7 @@ int RunVBSP( int argc, char **argv )
 				"  -nox360		   : Disable generation Xbox360 version of vsp (default)\n"
 				"  -replacematerials : Substitute materials according to materialsub.txt in content\\maps\n"
 				"  -FullMinidumps  : Write large minidumps on crash.\n"
+				"  -nohiddenmaps   : Exclude manifest maps if they are currently hidden.\n"
 				);
 			}
 
